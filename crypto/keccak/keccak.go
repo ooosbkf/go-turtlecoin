@@ -16,7 +16,6 @@ package keccak
 import (
 	"encoding/binary"
 	"fmt"
-	"math"
 )
 
 func keccakf(state []uint64, rounds int) {
@@ -66,6 +65,15 @@ func keccakf(state []uint64, rounds int) {
 		//Iota
 		state[0] ^= keccakfRc[round]
 	}
+}
+
+// calculates minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+
+	return b
 }
 
 // Compute a hash of length outputSize from input
@@ -153,7 +161,7 @@ func Keccak(input []byte, outputLength int) []byte {
 	output := make([]byte, outputLength)
 
 	// Don't overflow input array
-	for i := 0; i < int(math.Min(float64(outputLength), float64(32))); i++ {
+	for i := 0; i < min(outputLength, 32); i++ {
 		output[i] = result[i]
 	}
 
