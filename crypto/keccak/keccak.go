@@ -1,5 +1,6 @@
 /*
 
+Copyright 2011 Markku-Juhani O. Saarinen
 Copyright 2012-2013 The CryptoNote Developers
 Copyright 2014-2018 The Monero Developers
 Copyright 2018 The TurtleCoin Developers
@@ -8,15 +9,23 @@ Please see the included LICENSE file for more information
 
 */
 
+// This is pre NIST keccak before the sha-3 revisions
+
 package keccak
 
 import (
 	"encoding/binary"
+	"fmt"
+	"math"
 )
 
 func keccakf(state []uint64, rounds int) {
 	var t uint64
 	var bc [5]uint64
+
+	if rounds == -1 {
+		rounds = keccakRounds
+	}
 
 	for round := 0; round < rounds; round++ {
 
@@ -59,31 +68,35 @@ func keccakf(state []uint64, rounds int) {
 	}
 }
 
-// Keccak computes the keccak hash of given byte length
-func Keccak(input []byte, outputSize int) []byte {
+// Compute a hash of length outputSize from input
+func keccak(input []byte, outputSize int) []byte {
 
 	state := make([]uint64, 25)
 
-	var rsiz int
+	rsiz := hashDataArea
 
-	if len(state) * 8 == outputSize {
-		rsiz = hashDataArea
-	} else {
+	if outputSize != 200 {
 		rsiz = 200 - 2*outputSize
 	}
+
+	rsizw := rsiz / 8
 
 	inputLength := len(input)
 
 	for inputLength >= rsiz {
-		for i := 0; i < rsiz; i += 8 {
-			state[i/8] ^= binary.LittleEndian.Uint64(input[i:(i + 8)])
+		for i := 0; i < rsizw; i++ {
+			/* Read 8 bytes as a ulong, need to multiply i by
+			8 because we're reading chunks of 8 at once */
+			state[i] ^= binary.LittleEndian.Uint64(input[i*8 : (i*8 + 8)])
 		}
-		keccakf(state, keccakRounds)
+		keccakf(state, -1)
 		inputLength -= rsiz
 	}
 
 	temp := make([]byte, 144)
 
+	/* Copy inputLength bytes from input to tmp at an offset of
+	   offset from input */
 	for i := 0; i < inputLength; i++ {
 		temp[i] = input[i]
 	}
@@ -91,6 +104,8 @@ func Keccak(input []byte, outputSize int) []byte {
 	temp[inputLength] = 1
 	inputLength++
 
+	/* Zero (rsiz - inputLength) bytes in tmp, at an offset of
+	   inputLength */
 	for i := inputLength; i < rsiz; i++ {
 		temp[i] = 0
 	}
@@ -98,8 +113,11 @@ func Keccak(input []byte, outputSize int) []byte {
 	temp[rsiz-1] |= 0x80
 	temp[rsiz] = 1
 
-	for i := 0; i < rsiz; i += 8 {
-		state[i/8] ^= binary.LittleEndian.Uint64(temp[i:(i + 8)])
+	for i := 0; i < rsizw; i++ {
+		/* Read 8 bytes as a ulong - need to read at (i * 8) because
+		   we're reading chunks of 8 at once, rather than overlapping
+		   chunks of 8 */
+		state[i] ^= binary.LittleEndian.Uint64(temp[i*8 : (i*8 + 8)])
 	}
 
 	keccakf(state, keccakRounds)
@@ -114,6 +132,39 @@ func Keccak(input []byte, outputSize int) []byte {
 	}
 
 	return output
+
+}
+
+// Keccak hashes the given input with keccak, into an output hash of 32 bytes.
+// Copies outputLength bytes of the output and returns it. Output
+// length cannot be larger than 32.
+func Keccak(input []byte, outputLength int) []byte {
+
+	if outputLength > 32 {
+		fmt.Println("Output length must be 32 bytes or less")
+	}
+
+	if outputLength == -1 {
+		outputLength = 32
+	}
+
+	result := keccak(input, 32)
+
+	output := make([]byte, outputLength)
+
+	// Don't overflow input array
+	for i := 0; i < int(math.Min(float64(outputLength), float64(32))); i++ {
+		output[i] = result[i]
+	}
+
+	return output
+}
+
+// Keccak1600 hashes the given input with keccak,
+// into an output hash of 200 bytes.
+func Keccak1600(input []byte) []byte {
+
+	return keccak(input, 200)
 
 }
 
