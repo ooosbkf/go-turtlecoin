@@ -18,7 +18,11 @@ import (
 	"fmt"
 )
 
-func keccakf(state []uint64, rounds int) {
+// Keccakf is used only in Cryptonight package
+// Please don't use anywhere else, to make a
+// keccak hash please use the Keccak and
+// Keccak1600 function
+func Keccakf(state []uint64, rounds int) {
 	var t uint64
 	var bc [5]uint64
 
@@ -97,7 +101,7 @@ func keccak(input []byte, outputSize int) []byte {
 			8 because we're reading chunks of 8 at once */
 			state[i] ^= binary.LittleEndian.Uint64(input[i*8 : (i*8 + 8)])
 		}
-		keccakf(state, -1)
+		Keccakf(state, -1)
 		inputLength -= rsiz
 	}
 
@@ -128,7 +132,7 @@ func keccak(input []byte, outputSize int) []byte {
 		state[i] ^= binary.LittleEndian.Uint64(temp[i*8 : (i*8 + 8)])
 	}
 
-	keccakf(state, keccakRounds)
+	Keccakf(state, keccakRounds)
 
 	// following part is similar to memcpy in C/C++
 	temp1 := make([]byte, outputSize/4)
