@@ -56,7 +56,7 @@ var gCst = [16]uint{
 	0x452821E6, 0x38D01377, 0xBE5466CF, 0x34E90C6C,
 	0xC0AC29B7, 0xC97C50DD, 0x3F84D5B5, 0xB5470917}
 
-var gPadding = [64]byte{
+var gPadding = []byte{
 	0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -147,4 +147,106 @@ func compress(pbBlock []byte, iOffset int) {
 	for i := 0; i < 4; i++ {
 		mH[i+4] ^= mS[i]
 	}
+}
+
+func hashCore(array []byte, ibStart, cbSize int) {
+	iOffset := ibStart
+	nFill := 64 - mNBufLen
+
+	if mNBufLen > 0 && cbSize >= nFill {
+
+		for i := 0; i < nFill; i++ {
+			mBuf[mNBufLen+i] = array[iOffset+i]
+		}
+
+		mT += 512
+		compress(mBuf, 0)
+		iOffset += nFill
+		cbSize -= nFill
+		mNBufLen = 0
+	}
+
+	for cbSize >= 64 {
+		mT += 512
+		compress(array, iOffset)
+		iOffset += 64
+		cbSize -= 64
+	}
+
+	if cbSize > 0 {
+		for i := 0; i < cbSize; i++ {
+			mBuf[i+mNBufLen] = array[i+iOffset]
+		}
+		mNBufLen += cbSize
+	} else {
+		mNBufLen = 0
+	}
+}
+
+func hashFinal() []byte {
+	pbMsgLen := make([]byte, 8)
+	uLen := mT + (uint64(mNBufLen) << 3)
+	uint32ToBytes(uint((uLen>>32)&0xFFFFFFFF), pbMsgLen, 0)
+	uint32ToBytes(uint(uLen&0xFFFFFFFF), pbMsgLen, 4)
+
+	if mNBufLen == 55 {
+		mT -= 8
+		hashCore([]byte{0x81}, 0, 1)
+	} else {
+		if mNBufLen < 55 {
+			if mNBufLen == 0 {
+				mBNullT = true
+			}
+			mT -= uint64(440) - (uint64(mNBufLen) << 3)
+			hashCore(gPadding, 0, 55-mNBufLen)
+		} else {
+			mT -= uint64(512) - (uint64(mNBufLen) << 3)
+			hashCore(gPadding, 0, 64-mNBufLen)
+			mT -= uint64(440)
+			hashCore(gPadding, 1, 55)
+			mBNullT = true
+		}
+		hashCore([]byte{0x01}, 0, 1)
+		mT -= 8
+	}
+	mT -= 64
+	hashCore(pbMsgLen, 0, 8)
+
+	pbDigest := make([]byte, 32)
+
+	for i := 0; i < 8; i++ {
+		uint32ToBytes(mH[i], pbDigest, i<<2)
+	}
+
+	return pbDigest
+}
+
+// ComputeHash calculates the blake256 hash
+// of corresponding input and returns it.
+func ComputeHash(input []byte) []byte {
+	mH[0] = 0x6A09E667
+	mH[1] = 0xBB67AE85
+	mH[2] = 0x3C6EF372
+	mH[3] = 0xA54FF53A
+	mH[4] = 0x510E527F
+	mH[5] = 0x9B05688C
+	mH[6] = 0x1F83D9AB
+	mH[7] = 0x5BE0CD19
+
+	for i := 0; i < len(mS); i++ {
+		mS[i] = 0
+	}
+
+	mT = 0
+	mNBufLen = 0
+	mBNullT = false
+
+	for i := 0; i < len(mBuf); i++ {
+		mBuf[i] = 0
+	}
+
+	hashCore(input, 0, len(input))
+	hashValue := hashFinal()
+
+	return hashValue
 }
