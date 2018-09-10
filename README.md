@@ -1,5 +1,7 @@
 # Go TurtleCoin
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/rashedmyt/go-turtlecoin)](https://goreportcard.com/report/github.com/rashedmyt/go-turtlecoin)
+
 A Golang implementation of TurtleCoin software
 
 ## License
