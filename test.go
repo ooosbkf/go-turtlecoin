@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/rashedmyt/go-turtlecoin/crypto/keccak"
+	"github.com/turtlecoin/go-turtlecoin/crypto/keccak"
 )
 
 func main() {
